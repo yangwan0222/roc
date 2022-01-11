@@ -1,0 +1,266 @@
+rm(list = ls())
+library("readxl")
+library(ggplot2)
+library(plotROC)
+library(ggpubr)
+library(OptimalCutpoints)
+
+# https://www.youtube.com/watch?v=RGOj5yH7evk
+
+data <- read_excel("C:\\Users\\WanYa\\Desktop\\2021\\Decemeber\\03\\FNIH\\Copy of Unblinded Abeta round robin study Mike D with added columns 06_15_2021.xlsx",sheet = 2)
+data <- data.frame(data)
+data1 <- data[c(1,9)]
+data1$FBP[data1$FBP< 1.11] <- 1
+data1$FBP[data1$FBP>= 1.11] <- 0
+data1$ID <- substr(data1$GUSPECID,1,nchar(data1$GUSPECID)-3)
+data1 <- data1[-c(1)]; rm(data)
+
+############################# adx_aumc #################################
+
+data_adx_vumc <- read.csv("C:\\Users\\WanYa\\Desktop\\2021\\Decemeber\\03\\FNIH\\PLASMA_ABETA_PROJECT_ADX_VUMC.csv")
+data_adx_vumc1 <- data_adx_vumc[c(5,11:14)]
+data_adx_vumc1$ID <- substr(data_adx_vumc1$GUSPECID,1,nchar(data_adx_vumc1$GUSPECID)-3)
+data_adx_vumc2 <- merge(data1,data_adx_vumc1,by="ID")
+names(data_adx_vumc2)[5] <- "AB_42"
+names(data_adx_vumc2)[6] <- "AB_40"
+
+longtest <- melt_roc(data_adx_vumc2, "FBP", c("NF_LIGHT","AB_42","AB_40","GFAP"))
+
+p <- ggplot(longtest, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_adx_vumc2)[1], "ADX_VUMC (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC","#1d91c0","#253494")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+
+results1 <- optimal.cutpoints(X = "AB_40", status = "FBP",tag.healthy = 0, method = "Youden", data = data_adx_vumc2)
+results2 <- optimal.cutpoints(X = "AB_42", status = "FBP",tag.healthy = 0, method = "Youden", data = data_adx_vumc2)
+results3 <- optimal.cutpoints(X = "GFAP", status = "FBP",tag.healthy = 0, method = "Youden", data = data_adx_vumc2)
+results4 <- optimal.cutpoints(X = "NF_LIGHT", status = "FBP",tag.healthy = 0, method = "Youden", data = data_adx_vumc2)
+
+p+geom_point(aes(x=1-data.frame(summary(results1)[5])[3,1], y=data.frame(summary(results1)[5])[2,1]),shape = 18,size = 3,color="forestgreen") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,1], y=data.frame(summary(results2)[5])[2,1]),shape = 18,size = 3,color="red") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results3)[5])[3,1], y=data.frame(summary(results3)[5])[2,1]),shape = 18,size = 3,color="orangered4") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results4)[5])[3,1], y=data.frame(summary(results4)[5])[2,1]),shape = 18,size = 3,color="yellow2") + # manually change
+  geom_label(label=paste("95%CI AB_40: ",data.frame(summary(results1)[5])[1,2],
+                         "\n95%CI AB_42: ",data.frame(summary(results2)[5])[1,2],
+                         "\n95%CI GFAP: ",data.frame(summary(results3)[5])[1,2],
+                         "\n95%CI NF_LIGHT: ",data.frame(summary(results4)[5])[1,2]), # manually change
+             x=0.55,
+             y=0.15,
+             label.padding = unit(0.5, "lines"), # Rectangle size around 
+             label.size = 0.3,
+             color = "black",
+             fill="white",
+             hjust = 0
+  )
+# remind Dr.shaw a different file for 
+######################## data_quanterix  ######################################
+
+data_quanterix <- read.csv("C:\\Users\\WanYa\\Desktop\\Decemeber\\03\\FNIH\\PLASMA_ABETA_PROJECT_QUANTERIX.csv")
+data_quanterix1 <- data_quanterix[c(5,11:16,18)]
+data_quanterix1 <- data_quanterix1[-c(91),]
+data_quanterix1$ID <- substr(data_quanterix1$GUSPECID,1,nchar(data_quanterix1$GUSPECID)-3)
+data_quanterix1 <- merge(data1,data_quanterix1,by="ID")
+colnames(data_quanterix1) <- c("ID","FBP","GUSPECID","AEB_REP1","AEB_REP2","AVE_AEB",
+                               "CONC_REP1","CONC_REP2","AVE_CONC","CORRECTED_CONC")
+
+longtest1 <- melt_roc(data_quanterix1, "FBP", c("AEB_REP1","AEB_REP2","AVE_AEB"))
+p1 <- ggplot(longtest1, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_quanterix1)[1], "QUANTERIX_AB1_40_BEAD (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC","#1d91c0")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+longtest2 <- melt_roc(data_quanterix1, "FBP", c("CONC_REP1","CONC_REP2","AVE_CONC","CORRECTED_CONC"))
+p2 <- ggplot(longtest2, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_quanterix1)[1], "QUANTERIX_AB1_40_CONC (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#253494","#fd8d3c","#74c476","#fa9fb5")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+
+data_quanterix2 <- data_quanterix[c(5,21:26,28)]
+data_quanterix2 <- data_quanterix2[-c(92),]
+data_quanterix2$ID <- substr(data_quanterix2$GUSPECID,1,nchar(data_quanterix2$GUSPECID)-3)
+data_quanterix2 <- merge(data1,data_quanterix2,by="ID")
+colnames(data_quanterix2) <- c("ID","GUSPECID.x","FBP","GUSPECID.y","AEB_REP1","AEB_REP2","AVE_AEB",
+                               "CONC_REP1","CONC_REP2","AVE_CONC","CORRECTED_CONC")
+
+longtest1 <- melt_roc(data_quanterix2, "FBP", c("AEB_REP1","AEB_REP2","AVE_AEB"))
+p3 <- ggplot(longtest1, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_quanterix2)[1], "QUANTERIX_AB1_42_BEAD (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC","#1d91c0")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+longtest2 <- melt_roc(data_quanterix2, "FBP", c("CONC_REP1","CONC_REP2","AVE_CONC","CORRECTED_CONC"))
+p4 <- ggplot(longtest2, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_quanterix2)[1], "QUANTERIX_AB1_42_CONC (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#253494","#fd8d3c","#74c476","#fa9fb5")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+
+######################### roche #####################################
+
+data_roche <- read.csv("C:\\Users\\WanYa\\Desktop\\Decemeber\\03\\FNIH\\PLASMA_ABETA_PROJECT_ROCHE.csv")
+data_roche1 <- data_roche[c(5,11:12)]
+data_roche1$ID <- substr(data_roche1$GUSPECID,1,nchar(data_roche1$GUSPECID)-3)
+abeta1_40 <- data_roche1[c(TRUE,FALSE),]
+abeta1_42 <- data_roche1[!c(TRUE,FALSE),]
+
+data_roche2 <- merge(abeta1_40,abeta1_42,by="ID")
+colnames(data_roche2) <- c("ID","GUSPECID.x","ASSAY.x","AB_40","GUSPECID.y","ASSAY.y","AB_42")
+data_roche2 <- data_roche2[-c(2,3,5,6)]
+data_roche2 <- merge(data1,data_roche2,by="ID")
+longtest <- melt_roc(data_roche2, "FBP", c("AB_40","AB_42"))
+
+p <- ggplot(longtest, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_roche2)[1], "ROCHE (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+results1 <- optimal.cutpoints(X = "AB_40", status = "FBP",tag.healthy = 0, method = "Youden", data = data_roche2)
+results2 <- optimal.cutpoints(X = "AB_42", status = "FBP",tag.healthy = 0, method = "Youden", data = data_roche2)
+
+p+geom_point(aes(x=1-data.frame(summary(results1)[5])[3,1], y=data.frame(summary(results1)[5])[2,1]),shape = 18,size = 3,color="forestgreen") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,1], y=data.frame(summary(results2)[5])[2,1]),shape = 18,size = 3,color="red") +
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,2], y=data.frame(summary(results2)[5])[2,2]),shape = 18,size = 3,color="red") +
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,3], y=data.frame(summary(results2)[5])[2,3]),shape = 18,size = 3,color="red") +# manually change
+  geom_label(label=paste("95%CI AB_40: ",data.frame(summary(results1)[5])[1,2],
+                         "\n95%CI AB_42: ",data.frame(summary(results2)[5])[1,4]), # manually change
+             x=0.55,
+             y=0.2,
+             label.padding = unit(0.5, "lines"), # Rectangle size around 
+             label.size = 0.3,
+             color = "black",
+             fill="white",
+             hjust = 0
+  )
+
+############################ shimadzu ##################################
+
+data_shimadzu <- read.csv("C:\\Users\\WanYa\\Desktop\\Decemeber\\03\\FNIH\\PLASMA_ABETA_PROJECT_SHIMADZU.csv")
+data_shimadzu1 <- data_shimadzu[c(5,10:13)]
+data_shimadzu1$ID <- substr(data_shimadzu1$GUSPECID,1,nchar(data_shimadzu1$GUSPECID)-3)
+data_shimadzu2 <- merge(data1,data_shimadzu1,by="ID")
+names(data_shimadzu2)[names(data_shimadzu2) == 'COMPOSITE_BIOMARKER'] <- 'COMPOSITE'
+
+longtest <- melt_roc(data_shimadzu2, "FBP", c("AB1_40","AB1_42","APP_669_711","COMPOSITE"))
+
+p <- ggplot(longtest, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_shimadzu2)[1], "SHIMADZU (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC","#1d91c0","#253494")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+results1 <- optimal.cutpoints(X = "AB1_40", status = "FBP",tag.healthy = 0, method = "Youden", data = data_shimadzu2)
+results2 <- optimal.cutpoints(X = "AB1_42", status = "FBP",tag.healthy = 0, method = "Youden", data = data_shimadzu2)
+results3 <- optimal.cutpoints(X = "APP_669_711", status = "FBP",tag.healthy = 0, method = "Youden", data = data_shimadzu2)
+results4 <- optimal.cutpoints(X = "COMPOSITE", status = "FBP",tag.healthy = 0, method = "Youden", data = data_shimadzu2)
+
+p+geom_point(aes(x=1-data.frame(summary(results1)[5])[3,1], y=data.frame(summary(results1)[5])[2,1]),shape = 18,size = 3,color="forestgreen") +
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,1], y=data.frame(summary(results2)[5])[2,1]),shape = 18,size = 3,color="orangered4") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,2], y=data.frame(summary(results2)[5])[2,2]),shape = 18,size = 3,color="orangered4") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results3)[5])[3,1], y=data.frame(summary(results3)[5])[2,1]),shape = 18,size = 3,color="red") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results3)[5])[3,2], y=data.frame(summary(results3)[5])[2,2]),shape = 18,size = 3,color="red") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results4)[5])[3,1], y=data.frame(summary(results4)[5])[2,1]),shape = 18,size = 3,color="yellow2") + # manually change
+  geom_label(label=paste("95%CI AB1_40: ",data.frame(summary(results1)[5])[1,2],
+                         "\n95%CI AB1_42: ",data.frame(summary(results2)[5])[1,3],
+                         "\n95%CI APP_669_711: ",data.frame(summary(results3)[5])[1,3],
+                         "\n95%CI COMPOSITE: ",data.frame(summary(results4)[5])[1,2]), # manually change
+             x=0.7,
+             y=0.05,
+             label.padding = unit(0.5, "lines"), # Rectangle size around 
+             label.size = 0.3,
+             color = "black",
+             fill="white",
+             hjust = 0
+  )
+
+########################### gothenburg ###################################
+
+data_gothenburg <- read.csv("C:\\Users\\WanYa\\Desktop\\Decemeber\\03\\FNIH\\PLASMA_ABETA_PROJECT_U_OF_GOTHENBURG.csv")
+data_gothenburg1 <- data_gothenburg[c(5,11:14)]
+data_gothenburg1$ID <- substr(data_gothenburg1$GUSPECID,1,nchar(data_gothenburg1$GUSPECID)-3)
+data_gothenburg2 <- merge(data1,data_gothenburg1,by="ID")[-c(1,3)]
+
+data_gothenburg2[, 2:5] <- apply(data_gothenburg2[, 2:5], 2, function(x) as.numeric(x))
+colnames(data_gothenburg2) <- c("FBP","AB_37","AB_38","AB_40","AB_42")
+
+longtest <- melt_roc(data_gothenburg2, "FBP", c("AB_37","AB_38","AB_40","AB_42"))
+
+p <- ggplot(longtest, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_gothenburg2)[1], "Gothenburg (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC","#1d91c0","#253494")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+results1 <- optimal.cutpoints(X = "AB_37", status = "FBP",tag.healthy = 0, method = "Youden", data = data_gothenburg2)
+results2 <- optimal.cutpoints(X = "AB_38", status = "FBP",tag.healthy = 0, method = "Youden", data = data_gothenburg2)
+results3 <- optimal.cutpoints(X = "AB_40", status = "FBP",tag.healthy = 0, method = "Youden", data = data_gothenburg2)
+results4 <- optimal.cutpoints(X = "AB_42", status = "FBP",tag.healthy = 0, method = "Youden", data = data_gothenburg2)
+
+p+geom_point(aes(x=1-data.frame(summary(results1)[5])[3,1], y=data.frame(summary(results1)[5])[2,1]),shape = 18,size = 3,color="forestgreen") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,1], y=data.frame(summary(results2)[5])[2,1]),shape = 18,size = 3,color="red") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results3)[5])[3,1], y=data.frame(summary(results3)[5])[2,1]),shape = 18,size = 3,color="orangered4") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results4)[5])[3,1], y=data.frame(summary(results4)[5])[2,1]),shape = 18,size = 3,color="yellow2") + # manually change
+  geom_label(label=paste("95%CI AB_37: ",data.frame(summary(results1)[5])[1,2],
+                         "\n95%CI AB_38: ",data.frame(summary(results2)[5])[1,2],
+                         "\n95%CI AB_40: ",data.frame(summary(results3)[5])[1,2],
+                         "\n95%CI AB_42: ",data.frame(summary(results4)[5])[1,2]), # manually change
+             x=0.55,
+             y=0.15,
+             label.padding = unit(0.5, "lines"), # Rectangle size around 
+             label.size = 0.3,
+             color = "black",
+             fill="white",
+             hjust = 0
+  )
+
+######################## wash_u ######################################
+
+data_wash_u <- read.csv("C:\\Users\\WanYa\\Desktop\\Decemeber\\03\\FNIH\\PLASMA_ABETA_PROJECT_WASH_U_11_05_21.csv")
+data_wash_u1 <- data_wash_u[c(5,24,25,27)]
+data_wash_u1$ID <- substr(data_wash_u1$GUSPECID,1,nchar(data_wash_u1$GUSPECID)-3)
+data_wash_u2 <- merge(data1,data_wash_u1,by="ID")[-c(1,3)]
+colnames(data_wash_u2) <- c("FBP","AB_42","AB_40","AB_4240")
+
+longtest <- melt_roc(data_wash_u2, "FBP", c("AB_42","AB_40","AB_4240"))
+
+p <- ggplot(longtest, aes(d = D, m = M, color = name)) + geom_roc() + style_roc() +
+  ggtitle(gsub("  ", dim(data_wash_u2)[1], "WASH_U_11_05_21 (n=  )")) + 
+  geom_abline(slope=1, intercept = 0, linetype = "dashed") + scale_color_manual(values=c("#CC6666","#9999CC","#1d91c0","#253494")) + 
+  scale_x_continuous("1 - Specificity",breaks = seq(0, 1, by = .1)) +
+  scale_y_continuous("Sensitivity",breaks = seq(0, 1, by = .1)) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=15))
+
+results1 <- optimal.cutpoints(X = "AB_42", status = "FBP",tag.healthy = 0, method = "Youden", data = data_wash_u2)
+results2 <- optimal.cutpoints(X = "AB_40", status = "FBP",tag.healthy = 0, method = "Youden", data = data_wash_u2)
+results3 <- optimal.cutpoints(X = "AB_4240", status = "FBP",tag.healthy = 0, method = "Youden", data_wash_u2)
+
+p+geom_point(aes(x=1-data.frame(summary(results1)[5])[3,1], y=data.frame(summary(results1)[5])[2,1]),shape = 18,size = 3,color="forestgreen") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results2)[5])[3,1], y=data.frame(summary(results2)[5])[2,1]),shape = 18,size = 3,color="red") + # manually change
+  geom_point(aes(x=1-data.frame(summary(results3)[5])[3,1], y=data.frame(summary(results3)[5])[2,1]),shape = 18,size = 3,color="orangered4") + # manually change
+  geom_label(label=paste("95%CI AB_42: ",data.frame(summary(results1)[5])[1,2],
+                         "\n95%CI AB_40: ",data.frame(summary(results2)[5])[1,2],
+                         "\n95%CI AB_4240: ",data.frame(summary(results3)[5])[1,2]), # manually change
+             x=0.6,
+             y=0.15,
+             label.padding = unit(0.5, "lines"), # Rectangle size around 
+             label.size = 0.3,
+             color = "black",
+             fill="white",
+             hjust = 0
+  )
